@@ -8,6 +8,7 @@
 %endmacro
 
 NULL equ 0x00
+STKSZ equ 16*1024
 section	.rodata	
 format_string: db "%d",0
 format_string2: db "hi! the string is: %s",10,0
@@ -25,6 +26,10 @@ curr_break: resd 1
 init_break: resd 1
 new_break:resd 1
 sizeOfBytes: resd 1
+sizeOfBytesPointerArray: resd 1
+sizeOfBytesStackArray: resd 1
+CORS: resd 1
+STACKARRAY : resd 1
 
 toolsArr: resb 24
 
@@ -120,7 +125,7 @@ initialize:
     mov    [init_break], eax
 
     mov edx, [N]
-    mov eax, 28 ; StackPointer , FuncPointer, ID, X , Y, Angle, destroyed
+    mov eax, 28 ;  FuncPointer, StackPointer, ID, X , Y, Angle, destroyed
     mul edx
     mov [sizeOfBytes], eax
     add eax, [curr_break] 
@@ -133,9 +138,49 @@ initialize:
     mov [new_break], eax ; start of the allocated segment
 
 
+    mov edx, [N]
+    mov eax, 4
+    mul edx
+    mov [sizeOfBytesPointerArray], eax
+    add eax, [curr_break]
+    mov ebx,eax
+    mov eax, 45
+    int 0x80
+
+    mov [curr_break], eax
+    sub eax, [sizeOfBytesPointerArray]
+    mov [CORS], eax
+    
+
+	mov edx, [N]
+	mov eax, [STKSZ]
+	mul edx
+	mov [sizeOfBytesStackArray], eax
+	add eax, [curr_break]
+	mov ebx, eax
+	mov eax, 45
+	int 0x80
+	mov [curr_break], eax
+	sub eax, [sizeOfBytesStackArray]
+	mov [STACKARRAY], eax ; [STACKARRAY] start of the allocated segment
+	
+
+    mov ecx, [N]
+    myLoop:
+	    mov edx,0
+	    mov ebx, [new_break]
+	    mov [CORS+4*edx], ebx+28*edx
+	    mov eax, [STACKARRAY+edx*STKSZ]
+	    mov [ebx+28*edx+4], eax 
+	    loop myLoop, ecx
+
 	mov esp,ebp
 	pop ebp
 	ret
+
+
+
+
 
 free:
 	push ebp
