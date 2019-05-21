@@ -9,19 +9,41 @@
 
 NULL equ 0x00
 STKSZ equ 16*1024
+STRUCTSIZE equ 28
+CODEP equ 0
+SPP equ 4
+
 section	.rodata	
 format_string: db "%d",0
 format_string2: db "hi! the string is: %s",10,0
 format_string3: db "12",0
+format_string4: db "functionPointer : %p stackPointer: %p ID: %d X:%d Y:%d Angle: %d Destroyed: %d",10,0
+
+global seed
+
+section .data ; TODO : PUT inside the first, the name of the function of each component
+sche:dd NULL
+	 dd schedulerSTACK
+target:dd NULL
+	   dd targetSTACK
+printe:dd NULL
+	   dd printerSTACK
+stpArr:dd sche
+	   dd target
+	   dd printe
+SPT :  dd NULL
+
+seed: dd 0
 
 section .bss
-;mystack: resb 4*LEN ; each slot is 4 bytes, LEN slots equal to 4*LEN bytes
+schedulerSTACK: resb STKSZ
+targetSTACK: resb STKSZ
+printerSTACK: resb STKSZ
 N: resd 1
 T: resd 1
 K: resd 1
 BETA: resd 1
 D: resd 1
-seed: resd 1
 curr_break: resd 1
 init_break: resd 1
 new_break:resd 1
@@ -31,7 +53,6 @@ sizeOfBytesStackArray: resd 1
 CORS: resd 1
 STACKARRAY : resd 1
 
-toolsArr: resb 24
 
 section .text
   align 16
@@ -39,6 +60,9 @@ section .text
      extern printf 
      extern fprintf 
      extern sscanf
+     extern calloc
+	 extern free
+	 extern calculatePosition
 
 main: 
 	push ebp
@@ -106,7 +130,16 @@ parseArgs:
 	popingAll
 
 	pushingAll
-	call free
+	call calculatePosition
+	popingAll
+
+	mov eax, [seed]
+	pushingAll
+	
+	push eax
+	push format_string
+	call printf
+	add esp, 8
 	popingAll
 
 	mov esp,ebp
@@ -118,61 +151,98 @@ initialize:
 	push ebp
 	mov ebp,esp
 
-	mov    eax, 45              ;system call brk
-    mov    ebx, 0               ;invalid address
-    int    0x80
-    mov    [curr_break], eax
-    mov    [init_break], eax
+	pushingAll
+	push dword STRUCTSIZE
+	push dword [N]
+	call calloc
+	mov [new_break], eax
+	add esp, 8
+	popingAll
 
-    mov edx, [N]
-    mov eax, 28 ;  FuncPointer, StackPointer, ID, X , Y, Angle, destroyed
-    mul edx
-    mov [sizeOfBytes], eax
-    add eax, [curr_break] 
-    mov ebx, eax  
- 	mov eax, 45              ;system call brk
-    int    0x80
+	pushingAll
+	push dword 4
+	push dword [N]
+	call calloc
+	mov [CORS], eax
+	add esp, 8
+	popingAll
 
-    mov [curr_break], eax ; end of the allocated segment
-    sub eax, [sizeOfBytes]
-    mov [new_break], eax ; start of the allocated segment
+	pushingAll
+	push dword STKSZ
+	push dword [N]
+	call calloc
+	mov [STACKARRAY], eax
+	add esp, 8
+	popingAll
 
+	;mov ecx,[N]
+	;mov ebx,0
+	;reducingAddressByStackSize:
+		;mov eax,[STACKARRAY+STKSZ*ebx]
 
-    mov edx, [N]
-    mov eax, 4
-    mul edx
-    mov [sizeOfBytesPointerArray], eax
-    add eax, [curr_break]
-    mov ebx,eax
-    mov eax, 45
-    int 0x80
+		;inc ebx
+		;loop reducingAddressByStackSize,ecx
 
-    mov [curr_break], eax
-    sub eax, [sizeOfBytesPointerArray]
-    mov [CORS], eax
-    
-
-	mov edx, [N]
-	mov eax, [STKSZ]
-	mul edx
-	mov [sizeOfBytesStackArray], eax
-	add eax, [curr_break]
-	mov ebx, eax
-	mov eax, 45
-	int 0x80
-	mov [curr_break], eax
-	sub eax, [sizeOfBytesStackArray]
-	mov [STACKARRAY], eax ; [STACKARRAY] start of the allocated segment
-	
-
+	mov ebx, 0
     mov ecx, [N]
-    myLoop:
-	    mov edx,0
-	    mov ebx, [new_break]
-	    mov [CORS+4*edx], ebx+28*edx
-	    mov eax, [STACKARRAY+edx*STKSZ]
-	    mov [ebx+28*edx+4], eax 
-	    loop myLoop, ecx
+    myLoop1:
+    	mov eax, ebx
+    	mov esi, STRUCTSIZE
+    	mul esi
+    	add eax, [new_break] ; inside eax we got the struct address + offset to the desired
+    	mov [CORS+4*ebx], eax ; in eax there is the starting address of the struct
+    	mov [eax+8], ebx
+    	inc ebx
+    	loop myLoop1, ecx
+
+
+    mov ebx,0
+    mov ecx,[N]
+    myLoop2:
+    	;; push into the struct member the stack pointer
+    	mov eax, ebx
+    	mov esi, STKSZ
+    	mul esi
+    	add eax,STKSZ
+    	add eax, [STACKARRAY]
+    	mov edx, [CORS+4*ebx]
+    	mov [edx+4], eax
+    	inc ebx
+    	loop myLoop2, ecx
+
+    mov ecx,[N]
+    mov ebx, 0
+    ZoopaLoopa1:
+    pushingAll
+    push dword [CORS+4*ebx]
+    call printMyStruct
+    add esp, 4
+    popingAll
+   	inc ebx
+    loop ZoopaLoopa1, ecx
+
+    mov edx,0
+    mov ecx,[N]
+    initialDronesLoop:
+    pushingAll
+    push edx
+    call initCo
+    add esp,4
+    popingAll
+    inc edx
+    loop initialDronesLoop,ecx
+
+
+    mov ecx,[N]
+    mov ebx, 0
+    ZoopaLoopa2:
+    pushingAll
+    push dword [CORS+4*ebx]
+    call printMyStruct
+    add esp, 4
+    popingAll
+   	inc ebx
+    loop ZoopaLoopa2, ecx
 
 	mov esp,ebp
 	pop ebp
@@ -181,15 +251,44 @@ initialize:
 
 
 
+;PRINT IS ONLY POSSIBLE IF X Y ANGLE ARE 4 byte
+;TODO -> change the struct in order to support X Y ANGLE to 10bytes
+printMyStruct: ; address of startingStruct and prints all of it. 
+	push ebp
+	mov ebp,esp
+	mov eax, [ebp+8]
+	pushingAll
+	push dword [eax+24]
+	push dword [eax+20]
+	push dword [eax+16]
+	push dword [eax+12]
+	push dword [eax+8]
+	push dword [eax+4]
+	push dword [eax]
+	push format_string4
+	call printf
+	add esp, 32
+	popingAll
 
-free:
+	mov esp, ebp
+	pop ebp
+	ret
+
+
+initCo:
 	push ebp
 	mov ebp,esp
 
-    mov    eax, 45              ;brk
-    mov    ebx, [init_break] ;get back to init address
-    int    0x80
-    mov    [new_break], eax
+	mov ebx, [ebp+8] ; get co-routine ID number
+	mov ebx, [4*ebx + CORS] ; get pointer to COi struct
+	mov eax, [ebx+CODEP] ; get initial EIP value – pointer to COi function
+	mov [SPT], ESP ; save ESP value
+	mov esp, [ebx+SPP] ; get initial ESP value – pointer to COi stack
+	push eax ; push initial “return” address the co-routine function
+	pushfd ; push flags
+	pushad ; push all other registers
+	mov [ebx+SPP], esp ; save new SPi value (after all the pushes)
+	mov ESP, [SPT] ; restore ESP value
 
 	mov esp,ebp
 	pop ebp
